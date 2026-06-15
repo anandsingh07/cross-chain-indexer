@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f1f5f9;
+  --foreground: #000000;
+  --card-bg: #ffffff;
+  --accent: #000000;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Outfit', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.brutalist-card {
+  background: var(--card-bg);
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px 0px #000000;
+  border-radius: 0px;
+  transition: all 0.15s ease-in-out;
+}
+
+.brutalist-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #000000;
+}
+
+.brutalist-button {
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px 0px #000000;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.1s ease;
+  border-radius: 0px;
+}
+
+.brutalist-button:hover {
+  background: #000000;
+  color: #ffffff;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px 0px #000000;
+}
+
+.brutalist-button:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0px 0px 0px 0px #000000;
+}
+
+.navbar-tab {
+  border-bottom: 2px solid transparent;
+  color: #4b5563;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.navbar-tab:hover {
+  color: #000000;
+}
+
+.navbar-tab.active {
+  color: #000000;
+  border-bottom-color: #000000;
+}
+
+.brutalist-input {
+  background: #ffffff;
+  border: 2px solid #000000;
+  color: #000000;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 0px;
+  transition: all 0.1s ease;
+}
+
+.brutalist-input:focus {
+  outline: none;
+  background: #f8fafc;
+  box-shadow: 2px 2px 0px 0px #000000;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-left: 2px solid #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #000000;
+  border: 1px solid #ffffff;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+@keyframes quickFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-quick-fade {
+  animation: quickFade 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}

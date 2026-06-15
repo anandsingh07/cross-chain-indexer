@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chainpulse
+      POSTGRES_PASSWORD: chainpulse
+      POSTGRES_DB: chainpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainpulse -d chainpulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # API + ingestion listener. Publishes decoded events to the Redis stream.
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://chainpulse:chainpulse@postgres:5432/chainpulse
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      USE_STREAMING: "true"
+      # In compose we run enrichment in a dedicated consumer service, so the API process
+      # itself does not also consume. Set CONSUMER_CONCURRENCY=0 to keep it producer-only.
+      CONSUMER_CONCURRENCY: 0
+      RPC_WS_URL_SEPOLIA: ${RPC_WS_URL_SEPOLIA}
+      RPC_HTTP_URL_SEPOLIA: ${RPC_HTTP_URL_SEPOLIA}
+      RPC_WS_URL_BASE_SEPOLIA: ${RPC_WS_URL_BASE_SEPOLIA}
+      RPC_HTTP_URL_BASE_SEPOLIA: ${RPC_HTTP_URL_BASE_SEPOLIA}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+
+  # Dedicated enrichment/persistence consumers. Scale horizontally: --scale consumer=4
+  consumer:
+    build: .
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://chainpulse:chainpulse@postgres:5432/chainpulse
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CONSUMER_CONCURRENCY: 4
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: node dist/streaming/consumer.js
+
+volumes:
+  pg_data:

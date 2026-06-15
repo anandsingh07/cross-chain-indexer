@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  # Dummy values so config/env.ts (which validates at import) passes in CI.
+  DATABASE_URL: postgresql://x:x@localhost:5432/x
+  RPC_WS_URL_SEPOLIA: wss://example.invalid
+  RPC_HTTP_URL_SEPOLIA: https://example.invalid
+  RPC_WS_URL_BASE_SEPOLIA: wss://example.invalid
+  RPC_HTTP_URL_BASE_SEPOLIA: https://example.invalid
+
+jobs:
+  lint-and-unit:
+    name: Typecheck + Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
+
+  integration:
+    name: Integration tests (Testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Integration tests (real Postgres via Testcontainers)
+        run: npm run test:integration

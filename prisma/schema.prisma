@@ -1,0 +1,191 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Token {
+  address      String     @db.VarChar(42)
+  chainId      Int
+  symbol       String     @db.VarChar(20)
+  name         String     @db.VarChar(100)
+  decimals     Int
+  pythFeedId   String?    @db.VarChar(66) // Pyth price feed ID if available
+  transfers    Transfer[]
+  swapsIn      DexSwap[]  @relation("SwapsIn")
+  swapsOut     DexSwap[]  @relation("SwapsOut")
+  createdAt    DateTime   @default(now())
+
+  @@id([address, chainId])
+}
+
+model Wallet {
+  address          String     @db.VarChar(42)
+  chainId          Int
+  txCountSent      Int        @default(0)
+  txCountReceived  Int        @default(0)
+  lastActiveBlock  Int
+  transfersFrom    Transfer[] @relation("TransfersFrom")
+  transfersTo      Transfer[] @relation("TransfersTo")
+  swapsSent        DexSwap[]  @relation("SwapsSent")
+  swapsReceived    DexSwap[]  @relation("SwapsReceived")
+  nftEventsFrom    NftEvent[] @relation("NftEventsFrom")
+  nftEventsTo      NftEvent[] @relation("NftEventsTo")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@id([address, chainId])
+}
+
+model Transfer {
+  id               String   @id @default(uuid())
+  txHash           String   @db.VarChar(66)
+  logIndex         Int
+  blockNumber      Int
+  timestamp        DateTime
+  chainId          Int
+  fromAddress      String   @db.VarChar(42)
+  toAddress        String   @db.VarChar(42)
+  tokenAddress     String   @db.VarChar(42)
+  amount           String   @db.VarChar(78) // Raw uint256 as string
+  normalizedAmount Decimal  @db.Decimal(65, 18)
+  usdValue         Decimal? @db.Decimal(18, 6) // Dynamic price via Pyth oracle
+
+  fromWallet       Wallet   @relation("TransfersFrom", fields: [fromAddress, chainId], references: [address, chainId])
+  toWallet         Wallet   @relation("TransfersTo", fields: [toAddress, chainId], references: [address, chainId])
+  token            Token    @relation(fields: [tokenAddress, chainId], references: [address, chainId])
+
+  @@unique([txHash, logIndex, chainId])
+  @@index([fromAddress])
+  @@index([toAddress])
+  @@index([tokenAddress])
+  @@index([blockNumber])
+}
+
+model DexSwap {
+  id                  String   @id @default(uuid())
+  txHash              String   @db.VarChar(66)
+  logIndex            Int
+  blockNumber         Int
+  timestamp           DateTime
+  chainId             Int
+  poolAddress         String   @db.VarChar(42)
+  protocol            String   @db.VarChar(20) // "UNISWAP_V2" | "UNISWAP_V3"
+  sender              String   @db.VarChar(42)
+  recipient           String   @db.VarChar(42)
+  tokenInAddress      String   @db.VarChar(42)
+  tokenOutAddress     String   @db.VarChar(42)
+  amountIn            String   @db.VarChar(78)
+  amountOut           String   @db.VarChar(78)
+  amountInNormalized  Decimal  @db.Decimal(65, 18)
+  amountOutNormalized Decimal  @db.Decimal(65, 18)
+  amountUsd           Decimal? @db.Decimal(18, 6)
+
+  tokenIn             Token    @relation("SwapsIn", fields: [tokenInAddress, chainId], references: [address, chainId])
+  tokenOut            Token    @relation("SwapsOut", fields: [tokenOutAddress, chainId], references: [address, chainId])
+  senderWallet        Wallet   @relation("SwapsSent", fields: [sender, chainId], references: [address, chainId])
+  recipientWallet     Wallet   @relation("SwapsReceived", fields: [recipient, chainId], references: [address, chainId])
+
+  @@unique([txHash, logIndex, chainId])
+  @@index([tokenInAddress])
+  @@index([tokenOutAddress])
+  @@index([sender])
+  @@index([recipient])
+  @@index([blockNumber])
+}
+
+model NftCollection {
+  address      String     @db.VarChar(42)
+  chainId      Int
+  name         String     @db.VarChar(100)
+  symbol       String     @db.VarChar(20)
+  type         String     @db.VarChar(10) // "ERC721" | "ERC1155"
+  events       NftEvent[]
+  createdAt    DateTime   @default(now())
+
+  @@id([address, chainId])
+}
+
+model NftEvent {
+  id              String        @id @default(uuid())
+  txHash          String        @db.VarChar(66)
+  logIndex        Int
+  blockNumber     Int
+  timestamp       DateTime
+  chainId         Int
+  contractAddress String        @db.VarChar(42)
+  type            String        @db.VarChar(15) // "MINT" | "TRANSFER" | "BURN" | "SALE"
+  fromAddress     String        @db.VarChar(42)
+  toAddress       String        @db.VarChar(42)
+  tokenId         String        @db.VarChar(78)
+  amount          String        @db.VarChar(78) // "1" for ERC721, raw count for ERC1155
+  priceUsd        Decimal?      @db.Decimal(18, 6)
+
+  collection      NftCollection @relation(fields: [contractAddress, chainId], references: [address, chainId])
+  fromWallet      Wallet        @relation("NftEventsFrom", fields: [fromAddress, chainId], references: [address, chainId])
+  toWallet        Wallet        @relation("NftEventsTo", fields: [toAddress, chainId], references: [address, chainId])
+
+  @@unique([txHash, logIndex, chainId])
+  @@index([contractAddress])
+  @@index([fromAddress])
+  @@index([toAddress])
+  @@index([blockNumber])
+}
+
+model SyncCheckpoint {
+  chainId     Int      @id
+  blockNumber Int
+  updatedAt   DateTime @updatedAt
+}
+
+model BlockHistory {
+  blockNumber Int
+  chainId     Int
+  blockHash   String   @db.VarChar(66)
+  parentHash  String   @db.VarChar(66)
+  createdAt   DateTime @default(now())
+
+  @@id([blockNumber, chainId])
+}
+
+model ProcessingLog {
+  id        String   @id @default(uuid())
+  level     String   @db.VarChar(10)
+  message   String
+  context   String?  @db.Text
+  createdAt DateTime @default(now())
+}
+
+model AlertRule {
+  id                String     @id @default(uuid())
+  name              String     @db.VarChar(100)
+  type              String     @db.VarChar(20) // "WHALE" | "REORG" | "MILESTONE"
+  chainId           Int?
+  tokenAddress      String?    @db.VarChar(42)
+  thresholdUsd      Decimal?   @db.Decimal(18, 6)
+  recipientTelegram String?    @db.VarChar(100)
+  isActive          Boolean    @default(true)
+  logs              AlertLog[]
+  createdAt         DateTime   @default(now())
+}
+
+model AlertLog {
+  id         String    @id @default(uuid())
+  ruleId     String
+  type       String    @db.VarChar(20)
+  message    String    @db.Text
+  recipient  String    @db.VarChar(255)
+  status     String    @db.VarChar(15) // "SUCCESS" | "FAILED"
+  rule       AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+}
+
+model PriceCache {
+  feedId    String   @id @db.VarChar(66)
+  price     Decimal  @db.Decimal(18, 6)
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+}
